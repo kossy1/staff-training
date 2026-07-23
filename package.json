@@ -1,0 +1,33 @@
+{
+  "name": "staff-training-system",
+  "version": "1.0.0",
+  "description": "Staff Training and Development Tracking System",
+  "scripts": {
+    "build": "echo 'Building assets...' && npm run copy-files",
+    "copy-files": "npm run copy-bootstrap && npm run copy-jquery && npm run copy-chartjs && npm run copy-fontawesome && npm run copy-datatables",
+    "copy-bootstrap": "copyfiles -u 2 node_modules/bootstrap/dist/**/* assets/",
+    "copy-jquery": "copyfiles -u 2 node_modules/jquery/dist/**/* assets/js/",
+    "copy-chartjs": "copyfiles -u 2 node_modules/chart.js/dist/**/* assets/js/",
+    "copy-fontawesome": "copyfiles -u 2 node_modules/@fortawesome/fontawesome-free/**/* assets/",
+    "copy-datatables": "copyfiles -u 2 node_modules/datatables.net-bs4/**/* assets/",
+    "copy-select2": "copyfiles -u 2 node_modules/select2/dist/**/* assets/",
+    "watch": "echo 'Watching for changes...'",
+    "prod": "npm run build",
+    "production": "npm run build"
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-free": "^5.15.4",
+    "bootstrap": "^4.6.2",
+    "chart.js": "^3.9.1",
+    "datatables.net": "^1.13.4",
+    "datatables.net-bs4": "^1.13.4",
+    "fullcalendar": "^5.11.5",
+    "jquery": "^3.7.1",
+    "popper.js": "^1.16.1",
+    "select2": "^4.1.0-rc.0",
+    "sweetalert2": "^11.7.12"
+  },
+  "devDependencies": {
+    "copyfiles": "^2.4.1"
+  }
+}
