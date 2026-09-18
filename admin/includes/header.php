@@ -14,7 +14,7 @@ if (!isset($_SESSION['user_id']) || $_SESSION['role'] !== 'admin') {
 $current_page = basename($_SERVER['PHP_SELF']);
 $page_title = ucfirst(str_replace(['.php', '_'], ['', ' '], $current_page));
 
-// Get user info for header
+// Get user info
 $user_id = $_SESSION['user_id'] ?? 0;
 $employee_id = $_SESSION['employee_id'] ?? 0;
 $username = $_SESSION['username'] ?? 'Admin';
@@ -38,7 +38,7 @@ if (isset($conn)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $page_title . ' - ' . SITE_NAME; ?></title>
+    <title><?php echo $page_title . ' - ' . SITE_SHORT_NAME; ?></title>
     
     <!-- Favicon -->
     <link rel="icon" href="../assets/images/favicon.ico" type="image/x-icon">
@@ -76,10 +76,11 @@ if (isset($conn)) {
     ?>
     
     <style>
-        /* Additional header specific styles */
         :root {
             --header-height: 70px;
             --sidebar-width: 280px;
+            --primary: #667eea;
+            --secondary: #764ba2;
         }
         
         body {
@@ -87,7 +88,6 @@ if (isset($conn)) {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
         }
         
-        /* Sidebar backdrop */
         .sidebar-backdrop {
             display: none;
             position: fixed;
@@ -98,14 +98,12 @@ if (isset($conn)) {
             background: rgba(0,0,0,0.5);
             z-index: 998;
             backdrop-filter: blur(4px);
-            -webkit-backdrop-filter: blur(4px);
         }
         
         .sidebar-backdrop.show {
             display: block;
         }
         
-        /* Main wrapper */
         .wrapper {
             margin-left: var(--sidebar-width);
             min-height: 100vh;
@@ -123,23 +121,13 @@ if (isset($conn)) {
             }
         }
         
-        /* Print styles */
         @media print {
-            .navbar,
-            .sidebar,
-            .sidebar-backdrop,
-            .no-print {
+            .navbar, .sidebar, .sidebar-backdrop, .no-print {
                 display: none !important;
             }
-            body {
-                padding-top: 0 !important;
-            }
-            .wrapper {
-                margin-left: 0 !important;
-            }
-            .main-content {
-                padding: 20px !important;
-            }
+            body { padding-top: 0 !important; }
+            .wrapper { margin-left: 0 !important; }
+            .main-content { padding: 20px !important; }
         }
     </style>
 </head>

@@ -1,22 +1,52 @@
 <?php
-// admin/includes/sidebar.php - Admin Sidebar Navigation
+// admin/includes/sidebar.php - Admin Sidebar Navigation (Fixed Trainers Menu)
 $current_page = basename($_SERVER['PHP_SELF']);
+
+// Get user profile picture path
+$profile_picture = '';
+$default_avatar = '../assets/images/avatar.jpg';
+
+if (isset($_SESSION['employee_id']) && $_SESSION['employee_id'] > 0) {
+    $emp_id = (int)$_SESSION['employee_id'];
+    $result = $conn->query("SELECT profile_picture FROM employees WHERE id = $emp_id");
+    if ($result && $result->num_rows > 0) {
+        $row = $result->fetch_assoc();
+        if (!empty($row['profile_picture'])) {
+            $profile_picture = '../uploads/profile-pictures/' . $row['profile_picture'];
+        }
+    }
+}
+
+if (empty($profile_picture) || !file_exists($profile_picture)) {
+    $profile_picture = $default_avatar;
+}
 ?>
+<!-- Sidebar Backdrop (Mobile) -->
+<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
 <!-- Sidebar -->
 <nav class="sidebar" id="sidebar">
     <div class="sidebar-header">
         <a href="dashboard.php" class="sidebar-brand">
             <i class="fas fa-graduation-cap"></i>
-            <span>StaffTraining</span>
+            <span>PolyIbadan SDC</span>
         </a>
-        <button class="sidebar-close" id="sidebarClose">
+        <button class="sidebar-close" id="sidebarClose" type="button">
             <i class="fas fa-times"></i>
         </button>
     </div>
     
+    <div class="sidebar-institution">
+        <div class="institution-name">THE POLYTECHNIC, IBADAN</div>
+        <div class="institution-dept">SKILL DEVELOPMENT CENTRE</div>
+    </div>
+    
     <div class="sidebar-user">
-        <img src="<?php echo !empty($_SESSION['profile_picture']) ? '../uploads/profile-pictures/' . $_SESSION['profile_picture'] : '../assets/images/default-avatar.png'; ?>" 
-             alt="User" class="sidebar-user-avatar">
+        <img src="<?php echo $profile_picture; ?>" 
+             alt="User Avatar" 
+             class="sidebar-user-avatar"
+             id="sidebarUserAvatar"
+             onerror="this.src='<?php echo $default_avatar; ?>'">
         <div class="sidebar-user-info">
             <h6><?php echo htmlspecialchars($_SESSION['username'] ?? 'Admin'); ?></h6>
             <small><i class="fas fa-circle text-success" style="font-size: 8px;"></i> Online</small>
@@ -35,17 +65,18 @@ $current_page = basename($_SERVER['PHP_SELF']);
             </a>
         </li>
         
-        <!-- Employees Management -->
+        <!-- ===== MANAGEMENT SECTION ===== -->
         <li class="nav-section">Management</li>
         
+        <!-- Employees -->
         <li class="nav-item">
-            <a href="#employeesMenu" class="nav-link <?php echo in_array($current_page, ['employees.php', 'add-employee.php', 'edit-employee.php', 'view-employee.php']) ? 'active' : ''; ?>" 
-               data-toggle="collapse" aria-expanded="<?php echo in_array($current_page, ['employees.php', 'add-employee.php', 'edit-employee.php', 'view-employee.php']) ? 'true' : 'false'; ?>">
+            <a href="javascript:void(0)" class="nav-link <?php echo in_array($current_page, ['employees.php', 'add-employee.php', 'edit-employee.php', 'view-employee.php', 'departments.php']) ? 'active' : ''; ?>" 
+               onclick="toggleSubMenu(event, 'employeesMenu')">
                 <i class="fas fa-users"></i>
                 <span>Employees</span>
                 <i class="fas fa-chevron-down ml-auto"></i>
             </a>
-            <div class="collapse <?php echo in_array($current_page, ['employees.php', 'add-employee.php', 'edit-employee.php', 'view-employee.php']) ? 'show' : ''; ?>" id="employeesMenu">
+            <div class="submenu <?php echo in_array($current_page, ['employees.php', 'add-employee.php', 'edit-employee.php', 'view-employee.php', 'departments.php']) ? 'show' : ''; ?>" id="employeesMenu">
                 <ul class="nav-sub">
                     <li class="nav-item">
                         <a href="employees.php" class="nav-link <?php echo $current_page == 'employees.php' ? 'active' : ''; ?>">
@@ -69,16 +100,51 @@ $current_page = basename($_SERVER['PHP_SELF']);
                 </ul>
             </div>
         </li>
-        
+
+        <!-- ===== TRAINERS (Separate Top-Level Menu) ===== -->
+        <li class="nav-item">
+            <a href="javascript:void(0)" class="nav-link <?php echo in_array($current_page, ['trainers.php', 'add-trainer.php', 'edit-trainer.php', 'view-trainer.php', 'trainer-stats.php']) ? 'active' : ''; ?>" 
+               onclick="toggleSubMenu(event, 'trainersMenu')">
+                <i class="fas fa-user-tie"></i>
+                <span>Trainers</span>
+                <i class="fas fa-chevron-down ml-auto"></i>
+            </a>
+            <div class="submenu <?php echo in_array($current_page, ['trainers.php', 'add-trainer.php', 'edit-trainer.php', 'view-trainer.php', 'trainer-stats.php']) ? 'show' : ''; ?>" id="trainersMenu">
+                <ul class="nav-sub">
+                    <li class="nav-item">
+                        <a href="trainers.php" class="nav-link <?php echo $current_page == 'trainers.php' ? 'active' : ''; ?>">
+                            <i class="fas fa-list"></i> All Trainers
+                            <?php 
+                                $trainer_count = $conn->query("SELECT COUNT(*) as count FROM trainers WHERE status = 'active'")->fetch_assoc();
+                                if (($trainer_count['count'] ?? 0) > 0): 
+                            ?>
+                                <span class="nav-badge"><?php echo $trainer_count['count']; ?></span>
+                            <?php endif; ?>
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="add-trainer.php" class="nav-link <?php echo $current_page == 'add-trainer.php' ? 'active' : ''; ?>">
+                            <i class="fas fa-user-plus"></i> Add Trainer
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a href="trainer-stats.php" class="nav-link <?php echo $current_page == 'trainer-stats.php' ? 'active' : ''; ?>">
+                            <i class="fas fa-chart-pie"></i> Statistics
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </li>
+
         <!-- Trainings -->
         <li class="nav-item">
-            <a href="#trainingsMenu" class="nav-link <?php echo in_array($current_page, ['trainings.php', 'add-training.php', 'edit-training.php', 'training-calendar.php', 'view-training.php']) ? 'active' : ''; ?>" 
-               data-toggle="collapse" aria-expanded="<?php echo in_array($current_page, ['trainings.php', 'add-training.php', 'edit-training.php', 'training-calendar.php', 'view-training.php']) ? 'true' : 'false'; ?>">
+            <a href="javascript:void(0)" class="nav-link <?php echo in_array($current_page, ['trainings.php', 'add-training.php', 'edit-training.php', 'training-calendar.php', 'view-training.php', 'training-types.php']) ? 'active' : ''; ?>" 
+               onclick="toggleSubMenu(event, 'trainingsMenu')">
                 <i class="fas fa-chalkboard-teacher"></i>
                 <span>Trainings</span>
                 <i class="fas fa-chevron-down ml-auto"></i>
             </a>
-            <div class="collapse <?php echo in_array($current_page, ['trainings.php', 'add-training.php', 'edit-training.php', 'training-calendar.php', 'view-training.php']) ? 'show' : ''; ?>" id="trainingsMenu">
+            <div class="submenu <?php echo in_array($current_page, ['trainings.php', 'add-training.php', 'edit-training.php', 'training-calendar.php', 'view-training.php', 'training-types.php']) ? 'show' : ''; ?>" id="trainingsMenu">
                 <ul class="nav-sub">
                     <li class="nav-item">
                         <a href="trainings.php" class="nav-link <?php echo $current_page == 'trainings.php' ? 'active' : ''; ?>">
@@ -115,7 +181,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
                 <span>Enrollments</span>
                 <?php 
                     $pending = $conn->query("SELECT COUNT(*) as count FROM employee_trainings WHERE status = 'enrolled'")->fetch_assoc();
-                    if ($pending['count'] > 0): 
+                    if (($pending['count'] ?? 0) > 0): 
                 ?>
                     <span class="nav-badge badge-danger"><?php echo $pending['count']; ?></span>
                 <?php endif; ?>
@@ -124,13 +190,13 @@ $current_page = basename($_SERVER['PHP_SELF']);
         
         <!-- Certifications -->
         <li class="nav-item">
-            <a href="#certificationsMenu" class="nav-link <?php echo in_array($current_page, ['certifications.php', 'add-certification.php', 'view-certification.php']) ? 'active' : ''; ?>" 
-               data-toggle="collapse" aria-expanded="<?php echo in_array($current_page, ['certifications.php', 'add-certification.php', 'view-certification.php']) ? 'true' : 'false'; ?>">
+            <a href="javascript:void(0)" class="nav-link <?php echo in_array($current_page, ['certifications.php', 'add-certification.php', 'view-certification.php', 'expired-certifications.php']) ? 'active' : ''; ?>" 
+               onclick="toggleSubMenu(event, 'certificationsMenu')">
                 <i class="fas fa-certificate"></i>
                 <span>Certifications</span>
                 <i class="fas fa-chevron-down ml-auto"></i>
             </a>
-            <div class="collapse <?php echo in_array($current_page, ['certifications.php', 'add-certification.php', 'view-certification.php']) ? 'show' : ''; ?>" id="certificationsMenu">
+            <div class="submenu <?php echo in_array($current_page, ['certifications.php', 'add-certification.php', 'view-certification.php', 'expired-certifications.php']) ? 'show' : ''; ?>" id="certificationsMenu">
                 <ul class="nav-sub">
                     <li class="nav-item">
                         <a href="certifications.php" class="nav-link <?php echo $current_page == 'certifications.php' ? 'active' : ''; ?>">
@@ -157,13 +223,13 @@ $current_page = basename($_SERVER['PHP_SELF']);
         
         <!-- Development Plans -->
         <li class="nav-item">
-            <a href="#developmentMenu" class="nav-link <?php echo in_array($current_page, ['development-plans.php', 'add-development-plan.php', 'edit-development-plan.php', 'view-development-plan.php']) ? 'active' : ''; ?>" 
-               data-toggle="collapse" aria-expanded="<?php echo in_array($current_page, ['development-plans.php', 'add-development-plan.php', 'edit-development-plan.php', 'view-development-plan.php']) ? 'true' : 'false'; ?>">
+            <a href="javascript:void(0)" class="nav-link <?php echo in_array($current_page, ['development-plans.php', 'add-development-plan.php', 'edit-development-plan.php', 'view-development-plan.php']) ? 'active' : ''; ?>" 
+               onclick="toggleSubMenu(event, 'developmentMenu')">
                 <i class="fas fa-tasks"></i>
                 <span>Development Plans</span>
                 <i class="fas fa-chevron-down ml-auto"></i>
             </a>
-            <div class="collapse <?php echo in_array($current_page, ['development-plans.php', 'add-development-plan.php', 'edit-development-plan.php', 'view-development-plan.php']) ? 'show' : ''; ?>" id="developmentMenu">
+            <div class="submenu <?php echo in_array($current_page, ['development-plans.php', 'add-development-plan.php', 'edit-development-plan.php', 'view-development-plan.php']) ? 'show' : ''; ?>" id="developmentMenu">
                 <ul class="nav-sub">
                     <li class="nav-item">
                         <a href="development-plans.php" class="nav-link <?php echo $current_page == 'development-plans.php' ? 'active' : ''; ?>">
@@ -183,7 +249,21 @@ $current_page = basename($_SERVER['PHP_SELF']);
             </div>
         </li>
         
-        <!-- Reports -->
+        <!-- Payments -->
+        <li class="nav-item">
+            <a href="payments.php" class="nav-link <?php echo $current_page == 'payments.php' ? 'active' : ''; ?>">
+                <i class="fas fa-credit-card"></i>
+                <span>Payments</span>
+                <?php 
+                    $pending_payments = $conn->query("SELECT COUNT(*) as count FROM payments WHERE status = 'pending'")->fetch_assoc();
+                    if (($pending_payments['count'] ?? 0) > 0): 
+                ?>
+                    <span class="nav-badge badge-danger"><?php echo $pending_payments['count']; ?></span>
+                <?php endif; ?>
+            </a>
+        </li>
+        
+        <!-- ===== ANALYTICS SECTION ===== -->
         <li class="nav-section">Analytics</li>
         
         <li class="nav-item">
@@ -207,17 +287,17 @@ $current_page = basename($_SERVER['PHP_SELF']);
             </a>
         </li>
         
-        <!-- Settings -->
+        <!-- ===== SYSTEM SECTION ===== -->
         <li class="nav-section">System</li>
         
         <li class="nav-item">
-            <a href="#settingsMenu" class="nav-link <?php echo in_array($current_page, ['settings.php', 'profile.php', 'change-password.php']) ? 'active' : ''; ?>" 
-               data-toggle="collapse" aria-expanded="<?php echo in_array($current_page, ['settings.php', 'profile.php', 'change-password.php']) ? 'true' : 'false'; ?>">
+            <a href="javascript:void(0)" class="nav-link <?php echo in_array($current_page, ['settings.php', 'profile.php', 'change-password.php', 'backup.php']) ? 'active' : ''; ?>" 
+               onclick="toggleSubMenu(event, 'settingsMenu')">
                 <i class="fas fa-cog"></i>
                 <span>Settings</span>
                 <i class="fas fa-chevron-down ml-auto"></i>
             </a>
-            <div class="collapse <?php echo in_array($current_page, ['settings.php', 'profile.php', 'change-password.php']) ? 'show' : ''; ?>" id="settingsMenu">
+            <div class="submenu <?php echo in_array($current_page, ['settings.php', 'profile.php', 'change-password.php', 'backup.php']) ? 'show' : ''; ?>" id="settingsMenu">
                 <ul class="nav-sub">
                     <li class="nav-item">
                         <a href="profile.php" class="nav-link <?php echo $current_page == 'profile.php' ? 'active' : ''; ?>">
@@ -254,34 +334,33 @@ $current_page = basename($_SERVER['PHP_SELF']);
     
     <!-- Sidebar Footer -->
     <div class="sidebar-footer">
+        <div class="sidebar-institution-footer">
+            <div class="footer-institution">THE POLYTECHNIC, IBADAN</div>
+            <div class="footer-dept">SKILL DEVELOPMENT CENTRE</div>
+        </div>
         <div class="sidebar-version">
             <i class="fas fa-code-branch"></i> v1.0.0
-            <span class="mx-2">|</span>
-            <i class="fas fa-server"></i> PHP 8.2
         </div>
         <div class="sidebar-stats">
             <div class="stat-item">
-                <span class="stat-label">Online</span>
-                <span class="stat-value text-success">●</span>
+                <span class="stat-label">Status</span>
+                <span class="stat-value text-success">● Online</span>
             </div>
             <div class="stat-item">
-                <span class="stat-label">Uptime</span>
-                <span class="stat-value"><?php 
-                    $uptime = shell_exec('uptime -p 2>/dev/null');
-                    echo $uptime ? trim($uptime) : 'N/A';
-                ?></span>
+                <span class="stat-label">Server</span>
+                <span class="stat-value">PHP <?php echo phpversion(); ?></span>
             </div>
         </div>
     </div>
 </nav>
 
-<!-- Mobile Sidebar Toggle -->
-<button class="sidebar-toggle-btn" id="sidebarToggleBtn">
+<!-- Mobile Sidebar Toggle Button -->
+<button class="sidebar-toggle-btn" id="sidebarToggleBtn" type="button" onclick="toggleSidebar();">
     <i class="fas fa-bars"></i>
 </button>
 
 <style>
-/* ===== Sidebar Styles ===== */
+/* ===== SIDEBAR STYLES ===== */
 .sidebar {
     position: fixed;
     top: 0;
@@ -292,31 +371,135 @@ $current_page = basename($_SERVER['PHP_SELF']);
     color: #fff;
     display: flex;
     flex-direction: column;
-    z-index: 1000;
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
+    z-index: 1050;
+    transition: transform 0.35s ease, box-shadow 0.35s ease;
     overflow-y: auto;
     overflow-x: hidden;
     box-shadow: 2px 0 20px rgba(0,0,0,0.2);
+    transform: translateX(-100%);
 }
 
-.sidebar::-webkit-scrollbar {
-    width: 4px;
+.sidebar.open {
+    transform: translateX(0);
 }
 
-.sidebar::-webkit-scrollbar-track {
+.sidebar-institution {
+    padding: 10px 25px 15px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    text-align: center;
+}
+
+.sidebar-institution .institution-name {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #667eea;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+.sidebar-institution .institution-dept {
+    font-size: 0.6rem;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 0.5px;
+    margin-top: 2px;
+}
+
+.sidebar-institution-footer {
+    text-align: center;
+    padding-bottom: 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    margin-bottom: 8px;
+}
+
+.sidebar-institution-footer .footer-institution {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #667eea;
+    letter-spacing: 0.5px;
+}
+
+.sidebar-institution-footer .footer-dept {
+    font-size: 0.55rem;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 0.3px;
+}
+
+.sidebar-backdrop {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 1040;
+}
+
+.sidebar-backdrop.show {
+    display: block;
+}
+
+.sidebar-toggle-btn {
+    display: none;
+    position: fixed;
+    top: 80px;
+    left: 15px;
+    z-index: 1030;
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 1.2rem;
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+    transition: all 0.3s ease;
+}
+
+.sidebar-toggle-btn:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+}
+
+@media (min-width: 992px) {
+    .sidebar { transform: translateX(0) !important; }
+    .sidebar-backdrop { display: none !important; }
+    .sidebar-toggle-btn { display: none !important; }
+    .sidebar-close { display: none !important; }
+}
+
+@media (max-width: 991.98px) {
+    .sidebar-toggle-btn { display: block; }
+    .sidebar.open {
+        transform: translateX(0);
+        box-shadow: 2px 0 30px rgba(0,0,0,0.4);
+    }
+    .sidebar-backdrop.show { display: block; }
+    .sidebar-close { display: block; }
+}
+
+.sidebar-close {
+    display: none;
     background: rgba(255,255,255,0.05);
+    border: none;
+    color: rgba(255,255,255,0.6);
+    font-size: 1.3rem;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
 }
 
-.sidebar::-webkit-scrollbar-thumb {
-    background: rgba(255,255,255,0.15);
-    border-radius: 10px;
+.sidebar-close:hover {
+    background: rgba(255,255,255,0.1);
+    color: #fff;
+    transform: rotate(90deg);
 }
 
-.sidebar::-webkit-scrollbar-thumb:hover {
-    background: rgba(255,255,255,0.25);
-}
+.sidebar::-webkit-scrollbar { width: 4px; }
+.sidebar::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+.sidebar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 10px; }
 
-/* Sidebar Header */
 .sidebar-header {
     padding: 20px 25px;
     border-bottom: 1px solid rgba(255,255,255,0.05);
@@ -342,26 +525,8 @@ $current_page = basename($_SERVER['PHP_SELF']);
     -webkit-text-fill-color: transparent;
 }
 
-.sidebar-brand:hover {
-    color: #fff;
-    text-decoration: none;
-}
+.sidebar-brand:hover { color: #fff; text-decoration: none; }
 
-.sidebar-close {
-    display: none;
-    background: none;
-    border: none;
-    color: rgba(255,255,255,0.5);
-    font-size: 1.2rem;
-    cursor: pointer;
-    padding: 5px;
-}
-
-.sidebar-close:hover {
-    color: #fff;
-}
-
-/* Sidebar User */
 .sidebar-user {
     padding: 20px 25px;
     border-bottom: 1px solid rgba(255,255,255,0.05);
@@ -376,20 +541,12 @@ $current_page = basename($_SERVER['PHP_SELF']);
     border-radius: 50%;
     object-fit: cover;
     border: 2px solid rgba(255,255,255,0.1);
+    background: #2d2d44;
 }
 
-.sidebar-user-info h6 {
-    margin: 0;
-    font-weight: 600;
-    font-size: 0.95rem;
-}
+.sidebar-user-info h6 { margin: 0; font-weight: 600; font-size: 0.95rem; }
+.sidebar-user-info small { color: rgba(255,255,255,0.5); font-size: 0.75rem; }
 
-.sidebar-user-info small {
-    color: rgba(255,255,255,0.5);
-    font-size: 0.75rem;
-}
-
-/* Sidebar Navigation */
 .sidebar-nav {
     flex: 1;
     padding: 15px 0;
@@ -406,9 +563,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
     font-weight: 600;
 }
 
-.sidebar-nav .nav-item {
-    margin-bottom: 1px;
-}
+.sidebar-nav .nav-item { margin-bottom: 1px; }
 
 .sidebar-nav .nav-link {
     display: flex;
@@ -442,19 +597,12 @@ $current_page = basename($_SERVER['PHP_SELF']);
     flex-shrink: 0;
 }
 
-.sidebar-nav .nav-link span {
-    flex: 1;
-}
+.sidebar-nav .nav-link span { flex: 1; }
 
 .sidebar-nav .nav-link .fa-chevron-down {
     font-size: 0.7rem;
     transition: transform 0.3s ease;
     opacity: 0.5;
-}
-
-.sidebar-nav .nav-link:not(.collapsed) .fa-chevron-down {
-    transform: rotate(180deg);
-    opacity: 1;
 }
 
 .sidebar-nav .nav-link .nav-badge {
@@ -478,12 +626,17 @@ $current_page = basename($_SERVER['PHP_SELF']);
     50% { transform: scale(1.05); }
 }
 
-/* Sub Menu */
+.submenu {
+    display: none;
+    background: rgba(0,0,0,0.2);
+}
+
+.submenu.show { display: block; }
+
 .nav-sub {
     list-style: none;
     padding: 0;
     margin: 0;
-    background: rgba(0,0,0,0.2);
 }
 
 .nav-sub .nav-link {
@@ -517,12 +670,6 @@ $current_page = basename($_SERVER['PHP_SELF']);
     margin-left: auto;
 }
 
-/* Collapse Animation */
-.collapse {
-    transition: all 0.25s ease;
-}
-
-/* Sidebar Footer */
 .sidebar-footer {
     padding: 15px 25px;
     border-top: 1px solid rgba(255,255,255,0.05);
@@ -543,9 +690,7 @@ $current_page = basename($_SERVER['PHP_SELF']);
     border-top: 1px solid rgba(255,255,255,0.03);
 }
 
-.sidebar-stats .stat-item {
-    text-align: center;
-}
+.sidebar-stats .stat-item { text-align: center; }
 
 .sidebar-stats .stat-label {
     display: block;
@@ -560,212 +705,159 @@ $current_page = basename($_SERVER['PHP_SELF']);
     color: rgba(255,255,255,0.5);
 }
 
-.sidebar-stats .stat-value.text-success {
-    color: #48bb78;
-}
+.sidebar-stats .stat-value.text-success { color: #48bb78; }
 
-/* Sidebar Toggle Button (Mobile) */
-.sidebar-toggle-btn {
-    display: none;
-    position: fixed;
-    top: 15px;
-    left: 15px;
-    z-index: 999;
-    background: linear-gradient(135deg, #667eea, #764ba2);
-    color: white;
-    border: none;
-    border-radius: 8px;
-    padding: 10px 15px;
-    font-size: 1.2rem;
-    cursor: pointer;
-    box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-    transition: all 0.3s ease;
-}
-
-.sidebar-toggle-btn:hover {
-    transform: scale(1.05);
-    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-}
-
-/* Sidebar Backdrop */
-.sidebar-backdrop {
-    display: none;
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0,0,0,0.5);
-    z-index: 999;
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-}
-
-.sidebar-backdrop.show {
-    display: block;
-}
-
-/* Main Content Offset */
 .wrapper {
     margin-left: 280px;
     min-height: 100vh;
     transition: margin-left 0.3s ease;
 }
 
-/* ===== Responsive ===== */
-@media (max-width: 992px) {
-    .sidebar {
-        transform: translateX(-100%);
-        width: 300px;
-    }
-    
-    .sidebar.open {
-        transform: translateX(0);
-        box-shadow: 2px 0 30px rgba(0,0,0,0.4);
-    }
-    
-    .sidebar-close {
-        display: block;
-    }
-    
-    .sidebar-backdrop.show {
-        display: block;
-    }
-    
-    .wrapper {
-        margin-left: 0;
-    }
-    
-    .sidebar-toggle-btn {
-        display: block;
-    }
-    
-    /* Adjust main content when sidebar is open */
-    .sidebar.open ~ .wrapper {
-        margin-left: 0;
-    }
+@media (max-width: 991.98px) {
+    .wrapper { margin-left: 0; }
 }
 
 @media (max-width: 576px) {
-    .sidebar {
-        width: 100%;
-        max-width: 320px;
-    }
-    
-    .sidebar-user {
-        padding: 15px 20px;
-    }
-    
-    .sidebar-nav .nav-link {
-        padding: 10px 20px;
-        font-size: 0.85rem;
-    }
-    
-    .nav-sub .nav-link {
-        padding: 7px 20px 7px 50px;
-        font-size: 0.8rem;
-    }
-    
-    .sidebar-header {
-        padding: 15px 20px;
-    }
-    
-    .sidebar-brand {
-        font-size: 1.1rem;
-    }
+    .sidebar { width: 100%; max-width: 320px; }
+    .sidebar-user { padding: 15px 20px; }
+    .sidebar-nav .nav-link { padding: 10px 20px; font-size: 0.85rem; }
+    .nav-sub .nav-link { padding: 7px 20px 7px 50px; font-size: 0.8rem; }
+    .sidebar-header { padding: 15px 20px; }
+    .sidebar-brand { font-size: 1.1rem; }
 }
 
-/* ===== Dark Mode Support ===== */
-@media (prefers-color-scheme: dark) {
-    .sidebar {
-        background: linear-gradient(180deg, #0f0f1a 0%, #1a1a2e 100%);
-    }
-}
-
-/* ===== Print Styles ===== */
 @media print {
-    .sidebar,
-    .sidebar-toggle-btn,
-    .sidebar-backdrop {
-        display: none !important;
-    }
-    
-    .wrapper {
-        margin-left: 0 !important;
-        padding-top: 0 !important;
-    }
+    .sidebar, .sidebar-toggle-btn, .sidebar-backdrop { display: none !important; }
+    .wrapper { margin-left: 0 !important; padding-top: 0 !important; }
 }
 </style>
 
 <script>
-$(document).ready(function() {
-    // ===== Sidebar Toggle =====
-    $('#sidebarToggleBtn, #sidebarToggle').on('click', function(e) {
-        e.preventDefault();
-        $('#sidebar').toggleClass('open');
-        $('.sidebar-backdrop').toggleClass('show');
-        $('body').toggleClass('sidebar-open');
-    });
+// ============================================
+// SIDEBAR CONTROLS - PURE JAVASCRIPT
+// ============================================
+
+function toggleSidebar() {
+    var sidebar = document.getElementById('sidebar');
+    var backdrop = document.getElementById('sidebarBackdrop');
+    if (!sidebar) return;
     
-    // ===== Sidebar Close =====
-    $('#sidebarClose, .sidebar-backdrop').on('click', function() {
-        $('#sidebar').removeClass('open');
-        $('.sidebar-backdrop').removeClass('show');
-        $('body').removeClass('sidebar-open');
-    });
-    
-    // ===== Active Submenu =====
-    // Auto expand submenu if child is active
-    $('.nav-sub .nav-link.active').each(function() {
-        const parentCollapse = $(this).closest('.collapse');
-        if (parentCollapse.length) {
-            parentCollapse.addClass('show');
-            const parentLink = $('[href="#' + parentCollapse.attr('id') + '"]');
-            parentLink.removeClass('collapsed');
-            parentLink.attr('aria-expanded', 'true');
+    if (sidebar.classList.contains('open')) {
+        closeSidebar();
+    } else {
+        sidebar.classList.add('open');
+        sidebar.style.transform = 'translateX(0)';
+        if (backdrop) {
+            backdrop.classList.add('show');
+            backdrop.style.display = 'block';
         }
-    });
+        document.body.style.overflow = 'hidden';
+    }
+}
+
+function closeSidebar() {
+    var sidebar = document.getElementById('sidebar');
+    var backdrop = document.getElementById('sidebarBackdrop');
+    if (sidebar) {
+        sidebar.classList.remove('open');
+        sidebar.style.transform = 'translateX(-100%)';
+    }
+    if (backdrop) {
+        backdrop.classList.remove('show');
+        backdrop.style.display = 'none';
+    }
+    document.body.style.overflow = '';
+}
+
+function toggleSubMenu(event, menuId) {
+    if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+    }
+    var menu = document.getElementById(menuId);
+    if (!menu) return;
     
-    // ===== Submenu Toggle =====
-    $('.sidebar-nav .nav-link[data-toggle="collapse"]').on('click', function(e) {
-        e.preventDefault();
-        const target = $(this).attr('href');
-        $(target).collapse('toggle');
-        $(this).toggleClass('collapsed');
-        const expanded = $(this).attr('aria-expanded') === 'true' ? 'false' : 'true';
-        $(this).attr('aria-expanded', expanded);
-    });
+    if (menu.classList.contains('show')) {
+        menu.classList.remove('show');
+        menu.style.display = 'none';
+    } else {
+        menu.classList.add('show');
+        menu.style.display = 'block';
+    }
     
-    // ===== Close sidebar on outside click =====
-    $(document).on('click', function(e) {
-        if ($(window).width() <= 992) {
-            if (!$(e.target).closest('.sidebar').length && 
-                !$(e.target).closest('.sidebar-toggle-btn').length &&
-                !$(e.target).closest('#sidebarToggle').length) {
-                $('#sidebar').removeClass('open');
-                $('.sidebar-backdrop').removeClass('show');
-            }
+    if (event && event.currentTarget) {
+        var chevron = event.currentTarget.querySelector('.fa-chevron-down');
+        if (chevron) {
+            chevron.style.transform = menu.classList.contains('show') ? 'rotate(180deg)' : 'rotate(0deg)';
         }
-    });
+    }
+}
+
+// Initialize on DOM ready
+document.addEventListener('DOMContentLoaded', function() {
+    var sidebar = document.getElementById('sidebar');
+    var backdrop = document.getElementById('sidebarBackdrop');
+    var toggleBtn = document.getElementById('sidebarToggleBtn');
+    var closeBtn = document.getElementById('sidebarClose');
     
-    // ===== Keyboard shortcut: Ctrl + B = Toggle Sidebar =====
-    $(document).on('keydown', function(e) {
-        if (e.ctrlKey && e.key === 'b') {
+    console.log('Sidebar init:');
+    console.log('- Sidebar:', sidebar ? 'OK' : 'MISSING');
+    console.log('- Backdrop:', backdrop ? 'OK' : 'MISSING');
+    console.log('- Toggle:', toggleBtn ? 'OK' : 'MISSING');
+    console.log('- Close:', closeBtn ? 'OK' : 'MISSING');
+    
+    if (backdrop) {
+        backdrop.addEventListener('click', function(e) {
             e.preventDefault();
-            $('#sidebarToggleBtn').click();
+            closeSidebar();
+        });
+    }
+    
+    if (closeBtn) {
+        closeBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            closeSidebar();
+        });
+    }
+    
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            toggleSidebar();
+        });
+    }
+    
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && sidebar && sidebar.classList.contains('open')) {
+            closeSidebar();
         }
     });
     
-    // ===== Resize handler =====
-    let resizeTimer;
-    $(window).on('resize', function() {
-        clearTimeout(resizeTimer);
-        resizeTimer = setTimeout(function() {
-            if ($(window).width() > 992) {
-                $('#sidebar').removeClass('open');
-                $('.sidebar-backdrop').removeClass('show');
+    // Auto-open active submenu
+    var activeSubLinks = document.querySelectorAll('.nav-sub .nav-link.active');
+    activeSubLinks.forEach(function(link) {
+        var submenu = link.closest('.submenu');
+        if (submenu) {
+            submenu.classList.add('show');
+            submenu.style.display = 'block';
+            var parentLink = submenu.previousElementSibling;
+            if (parentLink) {
+                var chevron = parentLink.querySelector('.fa-chevron-down');
+                if (chevron) {
+                    chevron.style.transform = 'rotate(180deg)';
+                }
             }
-        }, 250);
+        }
     });
+    
+    window.addEventListener('resize', function() {
+        if (window.innerWidth > 991) {
+            closeSidebar();
+        }
+    });
+    
+    console.log('Sidebar initialized successfully!');
 });
 </script>

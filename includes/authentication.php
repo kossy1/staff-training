@@ -1,91 +1,26 @@
 <?php
-// Authentication functions
+// includes/authentication.php - Fixed Authentication
 
-function login($email, $password) {
-    global $conn;
-    $stmt = $conn->prepare("SELECT * FROM users WHERE email = ?");
-    $stmt->bind_param("s", $email);
-    $stmt->execute();
-    $result = $stmt->get_result();
-    
-    if ($row = $result->fetch_assoc()) {
-        if (password_verify($password, $row['password'])) {
-            $_SESSION['user_id'] = $row['id'];
-            $_SESSION['username'] = $row['username'];
-            $_SESSION['role'] = $row['role'];
-            $_SESSION['employee_id'] = $row['employee_id'];
-            
-            logAction($row['id'], 'login', ['ip' => $_SERVER['REMOTE_ADDR']]);
-            return true;
-        }
-    }
-    return false;
+// ============================================
+// SESSION VALIDATION FUNCTIONS
+// ============================================
+
+/**
+ * Check if user is logged in
+ * @return bool
+ */
+function isLoggedIn() {
+    return isset($_SESSION['user_id']) && 
+           isset($_SESSION['logged_in']) && 
+           $_SESSION['logged_in'] === true;
 }
 
-function logout() {
-    if (isset($_SESSION['user_id'])) {
-        logAction($_SESSION['user_id'], 'logout');
-    }
-    session_destroy();
-    return true;
-}
-
-function requireLogin() {
-    if (!isLoggedIn()) {
-        redirect('login.php');
-        exit();
-    }
-}
-
-function requireAdmin() {
-    requireLogin();
-    if (!isAdmin()) {
-        redirect('index.php');
-        exit();
-    }
-}
-
-function requireEmployee() {
-    requireLogin();
-    if (!isEmployee()) {
-        redirect('index.php');
-        exit();
-    }
-}
-
-function checkPermission($requiredRole) {
-    if (!isLoggedIn()) {
-        return false;
-    }
-    
-    $role = $_SESSION['role'];
-    $permissions = [
-        'admin' => ['admin', 'manager', 'employee'],
-        'manager' => ['manager', 'employee'],
-        'employee' => ['employee']
-    ];
-    
-    return in_array($role, $permissions[$requiredRole] ?? []);
-}
-
-function hasRole($role) {
-    return isset($_SESSION['role']) && $_SESSION['role'] === $role;
-}
-
-function getCurrentUserRole() {
-    return $_SESSION['role'] ?? null;
-}
-
-function getCurrentUserId() {
-    return $_SESSION['user_id'] ?? null;
-}
-
-function getCurrentEmployeeId() {
-    return $_SESSION['employee_id'] ?? null;
-}
-
+/**
+ * Check if session is valid
+ * @return bool
+ */
 function isSessionValid() {
-    if (!isset($_SESSION['user_id'])) {
+    if (!isLoggedIn()) {
         return false;
     }
     
@@ -96,6 +31,73 @@ function isSessionValid() {
     $stmt->execute();
     $result = $stmt->get_result();
     
-    return $result->num_rows > 0;
+    if ($result->num_rows == 0) {
+        logout();
+        return false;
+    }
+    
+    // Check session timeout (30 minutes)
+    if (isset($_SESSION['login_time']) && (time() - $_SESSION['login_time'] > 1800)) {
+        logout();
+        return false;
+    }
+    
+    return true;
+}
+
+/**
+ * Check if user is admin
+ * @return bool
+ */
+function isAdmin() {
+    return isset($_SESSION['role']) && $_SESSION['role'] === 'admin';
+}
+
+/**
+ * Check if user is manager
+ * @return bool
+ */
+function isManager() {
+    return isset($_SESSION['role']) && $_SESSION['role'] === 'manager';
+}
+
+/**
+ * Check if user is employee
+ * @return bool
+ */
+function isEmployee() {
+    return isset($_SESSION['role']) && $_SESSION['role'] === 'employee';
+}
+
+/**
+ * Require login - Fixed to prevent loops
+ */
+function requireLogin() {
+    if (!isLoggedIn() || !isSessionValid()) {
+        header('Location: ../login.php');
+        exit();
+    }
+}
+
+/**
+ * Require admin - Fixed
+ */
+function requireAdmin() {
+    requireLogin();
+    if (!isAdmin()) {
+        header('Location: ../index.php');
+        exit();
+    }
+}
+
+/**
+ * Require employee - Fixed
+ */
+function requireEmployee() {
+    requireLogin();
+    if (!isEmployee()) {
+        header('Location: ../index.php');
+        exit();
+    }
 }
 ?>

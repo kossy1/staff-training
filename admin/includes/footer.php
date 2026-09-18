@@ -15,7 +15,7 @@
                 </div>
                 <div class="col-md-6 text-md-right">
                     <p class="mb-0 text-muted">
-                        <i class="fas fa-code"></i> Made with <i class="fas fa-heart text-danger"></i> by Your Team
+                        <i class="fas fa-code"></i> Made with <i class="fas fa-heart text-danger"></i> by Kossyvibes
                     </p>
                 </div>
             </div>

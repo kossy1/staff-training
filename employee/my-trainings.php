@@ -1,5 +1,5 @@
 <?php
-// employee/my-trainings.php - View Employee's Trainings
+// employee/my-trainings.php - View Employee's Trainings with Payment Status
 require_once '../includes/config.php';
 require_once '../includes/session.php';
 
@@ -19,7 +19,8 @@ $query = "
     SELECT et.*, 
            tp.title, tp.description, tp.type, tp.category,
            tp.start_date, tp.end_date, tp.location, tp.trainer_name,
-           tp.duration_hours, tp.status as training_status
+           tp.duration_hours, tp.status as training_status,
+           tp.cost
     FROM employee_trainings et
     JOIN training_programs tp ON et.training_id = tp.id
     WHERE et.employee_id = ?
@@ -63,7 +64,7 @@ $(document).ready(function() {
         pageLength: 25,
         order: [[0, "desc"]],
         columnDefs: [
-            { orderable: false, targets: [5] }
+            { orderable: false, targets: [6] }
         ]
     });
 });
@@ -83,6 +84,10 @@ function cancelEnrollment(id) {
             window.location.href = "cancel-enrollment.php?id=" + id;
         }
     });
+}
+
+function payForTraining(trainingId) {
+    window.location.href = "pay-training.php?training_id=" + trainingId;
 }
 </script>
 ';
@@ -194,6 +199,7 @@ function cancelEnrollment(id) {
                             <th>Type</th>
                             <th>Date</th>
                             <th>Progress</th>
+                            <th>Payment</th>
                             <th>Status</th>
                             <th>Actions</th>
                         </tr>
@@ -235,6 +241,27 @@ function cancelEnrollment(id) {
                                         </div>
                                     </td>
                                     <td>
+                                        <?php if ($training['cost'] > 0): ?>
+                                            <?php if ($training['payment_status'] == 'paid'): ?>
+                                                <span class="badge badge-success">
+                                                    <i class="fas fa-check-circle"></i> Paid
+                                                </span>
+                                            <?php elseif ($training['payment_status'] == 'pending'): ?>
+                                                <span class="badge badge-warning">
+                                                    <i class="fas fa-clock"></i> Pending
+                                                </span>
+                                            <?php else: ?>
+                                                <span class="badge badge-danger">
+                                                    <i class="fas fa-exclamation-circle"></i> Unpaid
+                                                </span>
+                                            <?php endif; ?>
+                                            <br>
+                                            <small class="text-muted"><?php echo formatNaira($training['cost']); ?></small>
+                                        <?php else: ?>
+                                            <span class="badge badge-success">Free</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
                                         <span class="badge badge-<?php echo getStatusBadgeClass($training['status']); ?>">
                                             <?php echo ucfirst(str_replace('_', ' ', $training['status'])); ?>
                                         </span>
@@ -245,6 +272,12 @@ function cancelEnrollment(id) {
                                                class="btn btn-outline-info" title="View Details">
                                                 <i class="fas fa-eye"></i>
                                             </a>
+                                            <?php if ($training['status'] == 'enrolled' && $training['cost'] > 0 && $training['payment_status'] != 'paid'): ?>
+                                                <button onclick="payForTraining(<?php echo $training['training_id']; ?>)" 
+                                                        class="btn btn-outline-success" title="Pay Now">
+                                                    <i class="fas fa-credit-card"></i>
+                                                </button>
+                                            <?php endif; ?>
                                             <?php if ($training['status'] == 'enrolled'): ?>
                                                 <a href="javascript:void(0)" 
                                                    onclick="cancelEnrollment(<?php echo $training['id']; ?>)" 
@@ -264,7 +297,7 @@ function cancelEnrollment(id) {
                             <?php endwhile; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="6" class="text-center text-muted py-4">
+                                <td colspan="7" class="text-center text-muted py-4">
                                     <i class="fas fa-chalkboard-teacher fa-3x mb-3 d-block"></i>
                                     <h5>No trainings found</h5>
                                     <p>You haven't enrolled in any trainings yet.</p>

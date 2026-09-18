@@ -1,5 +1,5 @@
 <?php
-// register.php - User Registration
+// register.php - User Registration with New Branding
 session_start();
 require_once 'includes/config.php';
 
@@ -118,7 +118,7 @@ $page_title = 'Register';
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <style>
         body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
             min-height: 100vh;
             padding: 50px 0;
         }
@@ -134,9 +134,21 @@ $page_title = 'Register';
             text-align: center;
             margin-bottom: 30px;
         }
-        .register-header h2 {
-            color: #333;
+        .register-header .institution-name {
+            font-size: 1rem;
             font-weight: 700;
+            color: #667eea;
+            letter-spacing: 1px;
+        }
+        .register-header .institution-sub {
+            font-size: 0.8rem;
+            color: #764ba2;
+            font-weight: 600;
+        }
+        .register-header h2 {
+            color: #2d3748;
+            font-weight: 700;
+            margin-top: 10px;
         }
         .register-header p {
             color: #6c757d;
@@ -144,6 +156,25 @@ $page_title = 'Register';
         .required:after {
             content: " *";
             color: red;
+        }
+        .register-divider {
+            border: none;
+            height: 2px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            width: 60px;
+            margin: 10px auto;
+            border-radius: 10px;
+        }
+        .institution-footer {
+            text-align: center;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #e2e8f0;
+        }
+        .institution-footer p {
+            font-size: 0.75rem;
+            color: #6c757d;
+            margin: 0;
         }
         @media (max-width: 576px) {
             .register-container {
@@ -157,8 +188,11 @@ $page_title = 'Register';
     <div class="register-container">
         <div class="register-header">
             <i class="fas fa-user-plus" style="font-size: 3rem; color: #667eea;"></i>
+            <div class="institution-name">THE POLYTECHNIC, IBADAN</div>
+            <div class="institution-sub">SKILL DEVELOPMENT CENTRE</div>
+            <hr class="register-divider">
             <h2>Create Account</h2>
-            <p>Register to access the training system</p>
+            <p>Register to access the staff training system</p>
         </div>
         
         <?php if ($success): ?>
@@ -266,6 +300,11 @@ $page_title = 'Register';
             
             <div class="text-center mt-3">
                 Already have an account? <a href="login.php">Login here</a>
+            </div>
+            
+            <div class="institution-footer">
+                <p>&copy; <?php echo date('Y'); ?> THE POLYTECHNIC, IBADAN - SKILL DEVELOPMENT CENTRE</p>
+                <p>Staff Training &amp; Development Tracking System</p>
             </div>
         </form>
     </div>

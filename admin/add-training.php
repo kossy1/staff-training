@@ -1,5 +1,5 @@
 <?php
-// admin/add-training.php - Add New Training with Full Functionality
+// admin/add-training.php - Add Training with Trainer Selection
 require_once '../includes/config.php';
 require_once '../includes/session.php';
 
@@ -12,11 +12,30 @@ $errors = [];
 $success = false;
 $form_data = [];
 
-// Get existing categories for dropdown
-$categories = $conn->query("SELECT DISTINCT category FROM training_programs WHERE category IS NOT NULL AND category != '' ORDER BY category");
+// ===== GET TRAINERS FOR DROPDOWN =====
+$trainers_list = [];
+$trainers_query = $conn->query("
+    SELECT id, first_name, last_name, email, specialization, qualification, experience_years 
+    FROM trainers 
+    WHERE status = 'active' 
+    ORDER BY first_name ASC
+");
+if ($trainers_query && $trainers_query->num_rows > 0) {
+    while ($t = $trainers_query->fetch_assoc()) {
+        $trainers_list[] = $t;
+    }
+}
 
+// ===== GET EXISTING CATEGORIES =====
+$categories = $conn->query("
+    SELECT DISTINCT category 
+    FROM training_programs 
+    WHERE category IS NOT NULL AND category != '' 
+    ORDER BY category
+");
+
+// ===== HANDLE FORM SUBMISSION =====
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Get form data
     $form_data = [
         'title' => trim($_POST['title'] ?? ''),
         'description' => trim($_POST['description'] ?? ''),
@@ -26,17 +45,30 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         'start_date' => trim($_POST['start_date'] ?? ''),
         'end_date' => trim($_POST['end_date'] ?? ''),
         'location' => trim($_POST['location'] ?? ''),
+        'trainer_id' => !empty($_POST['trainer_id']) ? (int)$_POST['trainer_id'] : null,
         'trainer_name' => trim($_POST['trainer_name'] ?? ''),
         'trainer_email' => trim($_POST['trainer_email'] ?? ''),
         'max_participants' => (int)($_POST['max_participants'] ?? 20),
         'cost' => (float)($_POST['cost'] ?? 0),
         'status' => trim($_POST['status'] ?? 'upcoming'),
-        'is_certified' => isset($_POST['is_certified']) ? 1 : 0,
         'prerequisites' => trim($_POST['prerequisites'] ?? ''),
-        'learning_objectives' => trim($_POST['learning_objectives'] ?? '')
+        'learning_objectives' => trim($_POST['learning_objectives'] ?? ''),
+        'is_certified' => isset($_POST['is_certified']) ? 1 : 0
     ];
     
-    // Validation
+    // If trainer_id is selected, auto-fill name and email
+    if ($form_data['trainer_id']) {
+        $stmt = $conn->prepare("SELECT first_name, last_name, email FROM trainers WHERE id = ?");
+        $stmt->bind_param("i", $form_data['trainer_id']);
+        $stmt->execute();
+        $trainer_data = $stmt->get_result()->fetch_assoc();
+        if ($trainer_data) {
+            $form_data['trainer_name'] = $trainer_data['first_name'] . ' ' . $trainer_data['last_name'];
+            $form_data['trainer_email'] = $trainer_data['email'];
+        }
+    }
+    
+    // ===== VALIDATION =====
     if (empty($form_data['title'])) {
         $errors[] = "Training title is required";
     }
@@ -59,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         $errors[] = "Invalid trainer email format";
     }
     
-    // Check for duplicate training title
+    // Check duplicate title
     if (empty($errors)) {
         $check = $conn->prepare("SELECT id FROM training_programs WHERE title = ?");
         $check->bind_param("s", $form_data['title']);
@@ -69,18 +101,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
     }
     
-    // Create training
+    // ===== CREATE TRAINING =====
     if (empty($errors)) {
-        $stmt = $conn->prepare("
-            INSERT INTO training_programs (
-                title, description, type, category, duration_hours,
-                start_date, end_date, location, trainer_name, trainer_email,
-                max_participants, cost, status, created_by
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ");
+        // Check if trainer_id column exists
+        $columns = $conn->query("SHOW COLUMNS FROM training_programs LIKE 'trainer_id'");
+        $has_trainer_id = $columns->num_rows > 0;
         
-        $stmt->bind_param(
-            "ssssisssssidsi",
+        // Check if prerequisites and learning_objectives exist
+        $columns = $conn->query("SHOW COLUMNS FROM training_programs LIKE 'prerequisites'");
+        $has_prerequisites = $columns->num_rows > 0;
+        
+        $columns = $conn->query("SHOW COLUMNS FROM training_programs LIKE 'learning_objectives'");
+        $has_objectives = $columns->num_rows > 0;
+        
+        $columns = $conn->query("SHOW COLUMNS FROM training_programs LIKE 'is_certified'");
+        $has_certified = $columns->num_rows > 0;
+        
+        // Build dynamic INSERT
+        $fields = "title, description, type, category, duration_hours, start_date, end_date, location, trainer_name, trainer_email, max_participants, cost, status, created_by";
+        $placeholders = "?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?";
+        $types = "ssssisssssidsi";
+        $params = [
             $form_data['title'],
             $form_data['description'],
             $form_data['type'],
@@ -95,23 +136,54 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $form_data['cost'],
             $form_data['status'],
             $_SESSION['user_id']
-        );
+        ];
+        
+        if ($has_trainer_id) {
+            $fields .= ", trainer_id";
+            $placeholders .= ", ?";
+            $types .= "i";
+            $params[] = $form_data['trainer_id'];
+        }
+        
+        if ($has_prerequisites) {
+            $fields .= ", prerequisites";
+            $placeholders .= ", ?";
+            $types .= "s";
+            $params[] = $form_data['prerequisites'];
+        }
+        
+        if ($has_objectives) {
+            $fields .= ", learning_objectives";
+            $placeholders .= ", ?";
+            $types .= "s";
+            $params[] = $form_data['learning_objectives'];
+        }
+        
+        if ($has_certified) {
+            $fields .= ", is_certified";
+            $placeholders .= ", ?";
+            $types .= "i";
+            $params[] = $form_data['is_certified'];
+        }
+        
+        $sql = "INSERT INTO training_programs ($fields) VALUES ($placeholders)";
+        $stmt = $conn->prepare($sql);
+        $stmt->bind_param($types, ...$params);
         
         if ($stmt->execute()) {
             $training_id = $conn->insert_id;
             
-            // Log the action
+            // Update trainer's total_trainings count
+            if ($has_trainer_id && $form_data['trainer_id']) {
+                $conn->query("UPDATE trainers SET total_trainings = total_trainings + 1 WHERE id = {$form_data['trainer_id']}");
+            }
+            
             logAction($_SESSION['user_id'], 'training_created', ['training_id' => $training_id]);
-            
-            // Send notification to admin (if needed)
-            // You can add notification logic here
-            
             $success = true;
-            $form_data = []; // Clear form
+            $form_data = [];
             
-            // Redirect to training list or show success message
-            $redirect_url = "trainings.php?success=created";
-            echo "<script>setTimeout(function(){ window.location.href = '$redirect_url'; }, 2000);</script>";
+            // Redirect after success
+            echo "<script>setTimeout(function(){ window.location.href='trainings.php?success=created'; }, 1500);</script>";
         } else {
             $errors[] = "Failed to create training: " . $conn->error;
         }
@@ -119,132 +191,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 }
 
 $page_title = 'Add Training';
-$page_scripts = '
-<script>
-$(document).ready(function() {
-    // Initialize Select2 for category
-    $(".select2").select2({
-        theme: "bootstrap4",
-        placeholder: "Select or enter category",
-        tags: true,
-        allowClear: true
-    });
-    
-    // Date validation
-    $("#start_date, #end_date").on("change", function() {
-        const start = $("#start_date").val();
-        const end = $("#end_date").val();
-        if (start && end && start > end) {
-            alert("Start date cannot be after end date!");
-            $(this).val("");
-        }
-    });
-    
-    // Preview form data
-    $("#previewBtn").on("click", function(e) {
-        e.preventDefault();
-        const formData = {
-            title: $("#title").val(),
-            type: $("#type").val(),
-            category: $("#category").val(),
-            duration: $("#duration_hours").val(),
-            start_date: $("#start_date").val(),
-            end_date: $("#end_date").val(),
-            location: $("#location").val(),
-            trainer: $("#trainer_name").val(),
-            max_participants: $("#max_participants").val(),
-            cost: $("#cost").val(),
-            status: $("#status").val()
-        };
-        
-        let html = "<div class=\'table-responsive\'><table class=\'table table-bordered\'><tbody>";
-        for (const [key, value] of Object.entries(formData)) {
-            if (value) {
-                const label = key.replace(/_/g, " ").toUpperCase();
-                html += `<tr><th>${label}</th><td>${value}</td></tr>`;
-            }
-        }
-        html += "</tbody></table></div>";
-        
-        Swal.fire({
-            title: "Training Preview",
-            html: html,
-            icon: "info",
-            confirmButtonText: "Looks Good",
-            confirmButtonColor: "#28a745"
-        });
-    });
-    
-    // Auto-generate duration from dates
-    $("#start_date, #end_date").on("change", function() {
-        const start = new Date($("#start_date").val());
-        const end = new Date($("#end_date").val());
-        if (start && end && end > start) {
-            const diffTime = Math.abs(end - start);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-            if (diffDays > 0 && !$("#duration_hours").val()) {
-                const hours = diffDays * 8; // Assuming 8 hours per day
-                $("#duration_hours").val(hours);
-            }
-        }
-    });
-    
-    // Form validation on submit
-    $("#trainingForm").on("submit", function(e) {
-        const start = $("#start_date").val();
-        const end = $("#end_date").val();
-        if (start && end && start > end) {
-            e.preventDefault();
-            Swal.fire({
-                icon: "error",
-                title: "Invalid Dates",
-                text: "Start date cannot be after end date!",
-                confirmButtonColor: "#d33"
-            });
-        }
-    });
-});
-
-// Custom function to format Naira
-function formatNairaDisplay(amount) {
-    return "₦" + parseFloat(amount).toLocaleString("en-NG", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    });
-}
-
-// Update cost display on input
-$("#cost").on("keyup", function() {
-    const val = $(this).val();
-    if (val && !isNaN(val)) {
-        $("#costDisplay").text("₦" + parseFloat(val).toLocaleString("en-NG", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        }));
-    } else {
-        $("#costDisplay").text("₦0.00");
-    }
-});
-</script>
-';
 ?>
 <?php require_once 'includes/header.php'; ?>
 <?php require_once 'includes/navbar.php'; ?>
 <?php require_once 'includes/sidebar.php'; ?>
 
 <style>
-/* Add Training Page Styles */
 .training-form-section {
     background: #f8f9fc;
     border-radius: 8px;
-    padding: 15px;
+    padding: 20px;
     margin-bottom: 20px;
+    border-left: 4px solid #667eea;
 }
 .section-title {
-    font-weight: 600;
+    font-weight: 700;
     color: #2d3748;
     margin-bottom: 15px;
-    font-size: 1.1rem;
+    font-size: 1.05rem;
 }
 .section-title i {
     color: #667eea;
@@ -260,20 +224,54 @@ $("#cost").on("keyup", function() {
     font-weight: 700;
     color: #28a745;
     text-align: center;
-    padding: 10px;
+    padding: 15px;
     background: #f8f9fc;
     border-radius: 8px;
+    border: 2px dashed #28a745;
 }
 .form-hint {
     font-size: 0.8rem;
     color: #6c757d;
     margin-top: 4px;
 }
-.status-badge {
-    padding: 5px 12px;
-    border-radius: 50px;
-    font-size: 0.8rem;
+.trainer-option {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.trainer-info-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    margin-top: 15px;
+    display: none;
+}
+.trainer-info-card.show {
+    display: block;
+}
+.trainer-info-card h6 {
+    color: white;
+    margin-bottom: 10px;
+}
+.trainer-info-card .info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 5px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    font-size: 0.9rem;
+}
+.trainer-info-card .info-row:last-child {
+    border-bottom: none;
+}
+.trainer-info-card .info-row span:first-child {
+    opacity: 0.8;
+}
+.trainer-info-card .info-row span:last-child {
     font-weight: 600;
+}
+.select2-container {
+    width: 100% !important;
 }
 </style>
 
@@ -316,40 +314,16 @@ $("#cost").on("keyup", function() {
     <?php endif; ?>
 
     <!-- Training Form -->
-    <div class="card">
-        <div class="card-header">
-            <ul class="nav nav-tabs card-header-tabs" id="trainingTabs" role="tablist">
-                <li class="nav-item">
-                    <a class="nav-link active" id="basic-tab" data-toggle="tab" href="#basic" role="tab">
-                        <i class="fas fa-info-circle"></i> Basic Info
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" id="schedule-tab" data-toggle="tab" href="#schedule" role="tab">
-                        <i class="fas fa-calendar-alt"></i> Schedule
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" id="trainer-tab" data-toggle="tab" href="#trainer" role="tab">
-                        <i class="fas fa-user-tie"></i> Trainer Info
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" id="cost-tab" data-toggle="tab" href="#cost" role="tab">
-                        <i class="fas fa-money-bill-wave"></i> Cost &amp; Capacity
-                    </a>
-                </li>
-            </ul>
-        </div>
-        <div class="card-body">
-            <form method="POST" id="trainingForm">
-                <div class="tab-content" id="trainingTabsContent">
-                    
-                    <!-- Tab 1: Basic Info -->
-                    <div class="tab-pane fade show active" id="basic" role="tabpanel">
+    <form method="POST" id="trainingForm">
+        <div class="row">
+            <div class="col-lg-8">
+                <!-- Basic Info -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-info-circle"></i> Basic Information</h5>
+                    </div>
+                    <div class="card-body">
                         <div class="training-form-section">
-                            <h6 class="section-title"><i class="fas fa-info-circle"></i> Basic Information</h6>
-                            
                             <div class="form-group">
                                 <label class="required-field">Training Title</label>
                                 <input type="text" name="title" id="title" class="form-control form-control-lg" 
@@ -362,7 +336,7 @@ $("#cost").on("keyup", function() {
                                 <label>Description</label>
                                 <textarea name="description" class="form-control" rows="4" 
                                           placeholder="Provide a detailed description of the training program"><?php echo htmlspecialchars($form_data['description'] ?? ''); ?></textarea>
-                                <div class="form-hint">Include what participants will learn, who it's for, and any prerequisites.</div>
+                                <div class="form-hint">Include what participants will learn and who it's for.</div>
                             </div>
                             
                             <div class="row">
@@ -376,31 +350,29 @@ $("#cost").on("keyup", function() {
                                             <option value="compliance" <?php echo ($form_data['type'] ?? '') == 'compliance' ? 'selected' : ''; ?>>Compliance</option>
                                             <option value="other" <?php echo ($form_data['type'] ?? '') == 'other' ? 'selected' : ''; ?>>Other</option>
                                         </select>
-                                        <div class="form-hint">Select the category that best describes this training.</div>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         <label>Category</label>
-                                        <select name="category" id="category" class="form-control select2">
-                                            <option value="">Select or enter category</option>
+                                        <input type="text" name="category" id="category" class="form-control" 
+                                               list="categoryList"
+                                               value="<?php echo htmlspecialchars($form_data['category'] ?? ''); ?>" 
+                                               placeholder="Select or type category">
+                                        <datalist id="categoryList">
                                             <?php while ($cat = $categories->fetch_assoc()): ?>
-                                                <option value="<?php echo htmlspecialchars($cat['category']); ?>" 
-                                                    <?php echo ($form_data['category'] ?? '') == $cat['category'] ? 'selected' : ''; ?>>
-                                                    <?php echo htmlspecialchars($cat['category']); ?>
-                                                </option>
+                                                <option value="<?php echo htmlspecialchars($cat['category']); ?>">
                                             <?php endwhile; ?>
-                                            <option value="Programming">Programming</option>
-                                            <option value="Leadership">Leadership</option>
-                                            <option value="Communication">Communication</option>
-                                            <option value="Project Management">Project Management</option>
-                                            <option value="Data Analysis">Data Analysis</option>
-                                            <option value="AI & Machine Learning">AI & Machine Learning</option>
-                                            <option value="Cloud Computing">Cloud Computing</option>
-                                            <option value="Cybersecurity">Cybersecurity</option>
-                                            <option value="Agile Methodologies">Agile Methodologies</option>
-                                        </select>
-                                        <div class="form-hint">You can type a new category and it will be saved.</div>
+                                            <option value="Programming">
+                                            <option value="Leadership">
+                                            <option value="Communication">
+                                            <option value="Project Management">
+                                            <option value="Data Analysis">
+                                            <option value="AI & Machine Learning">
+                                            <option value="Cloud Computing">
+                                            <option value="Cybersecurity">
+                                            <option value="Agile Methodologies">
+                                        </datalist>
                                     </div>
                                 </div>
                             </div>
@@ -409,30 +381,30 @@ $("#cost").on("keyup", function() {
                                 <label>Prerequisites</label>
                                 <textarea name="prerequisites" class="form-control" rows="2" 
                                           placeholder="List any prerequisites for this training"><?php echo htmlspecialchars($form_data['prerequisites'] ?? ''); ?></textarea>
-                                <div class="form-hint">What knowledge or skills should participants have before attending?</div>
                             </div>
                             
                             <div class="form-group">
                                 <label>Learning Objectives</label>
                                 <textarea name="learning_objectives" class="form-control" rows="3" 
                                           placeholder="List the key learning objectives"><?php echo htmlspecialchars($form_data['learning_objectives'] ?? ''); ?></textarea>
-                                <div class="form-hint">What will participants be able to do after completing this training?</div>
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- Tab 2: Schedule -->
-                    <div class="tab-pane fade" id="schedule" role="tabpanel">
+                </div>
+
+                <!-- Schedule -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-calendar-alt"></i> Schedule &amp; Location</h5>
+                    </div>
+                    <div class="card-body">
                         <div class="training-form-section">
-                            <h6 class="section-title"><i class="fas fa-calendar-alt"></i> Schedule &amp; Location</h6>
-                            
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="form-group">
                                         <label class="required-field">Start Date</label>
                                         <input type="date" name="start_date" id="start_date" class="form-control" 
                                                value="<?php echo htmlspecialchars($form_data['start_date'] ?? ''); ?>" required>
-                                        <div class="form-hint">When does the training begin?</div>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
@@ -440,7 +412,6 @@ $("#cost").on("keyup", function() {
                                         <label class="required-field">End Date</label>
                                         <input type="date" name="end_date" id="end_date" class="form-control" 
                                                value="<?php echo htmlspecialchars($form_data['end_date'] ?? ''); ?>" required>
-                                        <div class="form-hint">When does the training end?</div>
                                     </div>
                                 </div>
                             </div>
@@ -460,8 +431,7 @@ $("#cost").on("keyup", function() {
                                         <label>Location</label>
                                         <input type="text" name="location" id="location" class="form-control" 
                                                value="<?php echo htmlspecialchars($form_data['location'] ?? ''); ?>" 
-                                               placeholder="e.g., Conference Room A, Online, etc.">
-                                        <div class="form-hint">Physical location or platform for online training.</div>
+                                               placeholder="e.g., Conference Room A, Online">
                                     </div>
                                 </div>
                             </div>
@@ -474,44 +444,118 @@ $("#cost").on("keyup", function() {
                                     <option value="completed" <?php echo ($form_data['status'] ?? '') == 'completed' ? 'selected' : ''; ?>>Completed</option>
                                     <option value="cancelled" <?php echo ($form_data['status'] ?? '') == 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
                                 </select>
-                                <div class="form-hint">Current status of the training program.</div>
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- Tab 3: Trainer Info -->
-                    <div class="tab-pane fade" id="trainer" role="tabpanel">
+                </div>
+
+                <!-- Trainer -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-user-tie"></i> Trainer Information</h5>
+                    </div>
+                    <div class="card-body">
                         <div class="training-form-section">
-                            <h6 class="section-title"><i class="fas fa-user-tie"></i> Trainer Information</h6>
-                            
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label>Trainer Name</label>
-                                        <input type="text" name="trainer_name" id="trainer_name" class="form-control" 
-                                               value="<?php echo htmlspecialchars($form_data['trainer_name'] ?? ''); ?>" 
-                                               placeholder="Full name of trainer">
-                                        <div class="form-hint">Name of the person delivering the training.</div>
+                            <?php if (!empty($trainers_list)): ?>
+                                <div class="form-group">
+                                    <label>Select Trainer</label>
+                                    <select name="trainer_id" id="trainerSelect" class="form-control select2">
+                                        <option value="">-- Select a Trainer --</option>
+                                        <?php foreach ($trainers_list as $trainer): ?>
+                                            <option value="<?php echo $trainer['id']; ?>" 
+                                                    data-name="<?php echo htmlspecialchars($trainer['first_name'] . ' ' . $trainer['last_name']); ?>"
+                                                    data-email="<?php echo htmlspecialchars($trainer['email']); ?>"
+                                                    data-specialization="<?php echo htmlspecialchars($trainer['specialization'] ?? ''); ?>"
+                                                    data-qualification="<?php echo htmlspecialchars($trainer['qualification'] ?? ''); ?>"
+                                                    data-experience="<?php echo (int)$trainer['experience_years']; ?>"
+                                                    <?php echo ($form_data['trainer_id'] ?? '') == $trainer['id'] ? 'selected' : ''; ?>>
+                                                <?php echo htmlspecialchars($trainer['first_name'] . ' ' . $trainer['last_name']); ?> 
+                                                (<?php echo htmlspecialchars($trainer['specialization'] ?? 'General'); ?>)
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <div class="form-hint">
+                                        <i class="fas fa-info-circle"></i> 
+                                        Select a registered trainer from the list. 
+                                        <a href="add-trainer.php" target="_blank">Add new trainer</a>
                                     </div>
                                 </div>
-                                <div class="col-md-6">
-                                    <div class="form-group">
-                                        <label>Trainer Email</label>
-                                        <input type="email" name="trainer_email" id="trainer_email" class="form-control" 
-                                               value="<?php echo htmlspecialchars($form_data['trainer_email'] ?? ''); ?>" 
-                                               placeholder="trainer@example.com">
-                                        <div class="form-hint">Email address for contacting the trainer.</div>
+                                
+                                <!-- Trainer Info Card -->
+                                <div class="trainer-info-card" id="trainerInfoCard">
+                                    <h6><i class="fas fa-user-circle"></i> Selected Trainer</h6>
+                                    <div class="info-row">
+                                        <span>Name:</span>
+                                        <span id="infoName">-</span>
+                                    </div>
+                                    <div class="info-row">
+                                        <span>Email:</span>
+                                        <span id="infoEmail">-</span>
+                                    </div>
+                                    <div class="info-row">
+                                        <span>Specialization:</span>
+                                        <span id="infoSpecialization">-</span>
+                                    </div>
+                                    <div class="info-row">
+                                        <span>Qualification:</span>
+                                        <span id="infoQualification">-</span>
+                                    </div>
+                                    <div class="info-row">
+                                        <span>Experience:</span>
+                                        <span id="infoExperience">-</span>
+                                    </div>
+                                </div>
+                            <?php else: ?>
+                                <div class="alert alert-warning">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                    <strong>No trainers available!</strong> 
+                                    <a href="add-trainer.php" class="font-weight-bold">Add a trainer first</a>
+                                </div>
+                            <?php endif; ?>
+                            
+                            <!-- Hidden fields to store trainer name and email -->
+                            <input type="hidden" name="trainer_name" id="trainerName" value="<?php echo htmlspecialchars($form_data['trainer_name'] ?? ''); ?>">
+                            <input type="hidden" name="trainer_email" id="trainerEmail" value="<?php echo htmlspecialchars($form_data['trainer_email'] ?? ''); ?>">
+                            
+                            <!-- Manual override fields (optional) -->
+                            <div class="mt-3">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="manualTrainer" onchange="toggleManualTrainer()">
+                                    <label class="custom-control-label" for="manualTrainer">
+                                        Enter trainer details manually (if not in list)
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div id="manualTrainerFields" style="display: none; margin-top: 15px;">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label>Trainer Name</label>
+                                            <input type="text" name="manual_trainer_name" class="form-control" 
+                                                   placeholder="Full name">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="form-group">
+                                            <label>Trainer Email</label>
+                                            <input type="email" name="manual_trainer_email" class="form-control" 
+                                                   placeholder="trainer@example.com">
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-                    
-                    <!-- Tab 4: Cost & Capacity -->
-                    <div class="tab-pane fade" id="cost" role="tabpanel">
+                </div>
+
+                <!-- Cost & Capacity -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-money-bill-wave"></i> Cost &amp; Capacity</h5>
+                    </div>
+                    <div class="card-body">
                         <div class="training-form-section">
-                            <h6 class="section-title"><i class="fas fa-money-bill-wave"></i> Cost &amp; Capacity</h6>
-                            
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="form-group">
@@ -519,7 +563,6 @@ $("#cost").on("keyup", function() {
                                         <input type="number" name="max_participants" id="max_participants" class="form-control" 
                                                value="<?php echo htmlspecialchars($form_data['max_participants'] ?? 20); ?>" 
                                                required min="1" max="999">
-                                        <div class="form-hint">Maximum number of participants allowed.</div>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
@@ -533,13 +576,13 @@ $("#cost").on("keyup", function() {
                                                    value="<?php echo htmlspecialchars($form_data['cost'] ?? 0); ?>" 
                                                    placeholder="0.00" min="0">
                                         </div>
-                                        <div class="form-hint">Cost in Naira (₦). Enter 0 for free training.</div>
+                                        <div class="form-hint">Enter 0 for free training</div>
                                     </div>
                                 </div>
                             </div>
                             
                             <div class="row">
-                                <div class="col-md-12">
+                                <div class="col-12">
                                     <div class="cost-preview">
                                         <small class="text-muted d-block">Preview Cost</small>
                                         <span id="costDisplay">₦<?php echo number_format($form_data['cost'] ?? 0, 2); ?></span>
@@ -555,41 +598,165 @@ $("#cost").on("keyup", function() {
                                         <i class="fas fa-certificate text-primary"></i> This training includes certification
                                     </label>
                                 </div>
-                                <div class="form-hint">Check if participants receive a certificate upon completion.</div>
-                            </div>
-                        </div>
-                    </div>
-                    
-                </div><!-- end tab-content -->
-                
-                <!-- Form Actions -->
-                <div class="row mt-4">
-                    <div class="col-md-12">
-                        <hr>
-                        <div class="d-flex justify-content-between flex-wrap">
-                            <div>
-                                <button type="button" id="previewBtn" class="btn btn-info">
-                                    <i class="fas fa-eye"></i> Preview
-                                </button>
-                                <button type="reset" class="btn btn-secondary">
-                                    <i class="fas fa-undo"></i> Reset
-                                </button>
-                            </div>
-                            <div>
-                                <a href="trainings.php" class="btn btn-outline-secondary">
-                                    <i class="fas fa-times"></i> Cancel
-                                </a>
-                                <button type="submit" class="btn btn-primary btn-lg">
-                                    <i class="fas fa-save"></i> Create Training
-                                </button>
                             </div>
                         </div>
                     </div>
                 </div>
+            </div>
+            
+            <!-- Sidebar -->
+            <div class="col-lg-4">
+                <!-- Form Actions -->
+                <div class="card mb-4 sticky-top" style="top: 90px;">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0"><i class="fas fa-check-circle"></i> Actions</h5>
+                    </div>
+                    <div class="card-body">
+                        <button type="submit" class="btn btn-primary btn-block btn-lg">
+                            <i class="fas fa-save"></i> Create Training
+                        </button>
+                        <button type="reset" class="btn btn-secondary btn-block mt-2">
+                            <i class="fas fa-undo"></i> Reset Form
+                        </button>
+                        <a href="trainings.php" class="btn btn-outline-secondary btn-block mt-2">
+                            <i class="fas fa-times"></i> Cancel
+                        </a>
+                    </div>
+                </div>
                 
-            </form>
+                <!-- Quick Stats -->
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-chart-bar"></i> Quick Info</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Total Trainings:</span>
+                            <strong><?php echo $conn->query("SELECT COUNT(*) as c FROM training_programs")->fetch_assoc()['c']; ?></strong>
+                        </div>
+                        <div class="d-flex justify-content-between mb-2">
+                            <span class="text-muted">Available Trainers:</span>
+                            <strong><?php echo count($trainers_list); ?></strong>
+                        </div>
+                        <div class="d-flex justify-content-between">
+                            <span class="text-muted">Upcoming:</span>
+                            <strong><?php echo $conn->query("SELECT COUNT(*) as c FROM training_programs WHERE status = 'upcoming'")->fetch_assoc()['c']; ?></strong>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tips -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-lightbulb text-warning"></i> Tips</h5>
+                    </div>
+                    <div class="card-body">
+                        <ul class="small mb-0 pl-3">
+                            <li>Use clear, descriptive titles</li>
+                            <li>Set realistic duration based on content</li>
+                            <li>Add prerequisites for advanced trainings</li>
+                            <li>Free trainings should have cost = 0</li>
+                            <li>Enable certification for accredited courses</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
         </div>
-    </div>
+    </form>
 </div>
+
+<script>
+$(document).ready(function() {
+    // ===== TRAINER SELECTION =====
+    $('#trainerSelect').on('change', function() {
+        var selected = this.options[this.selectedIndex];
+        var trainerId = this.value;
+        
+        if (trainerId) {
+            var name = selected.getAttribute('data-name') || '';
+            var email = selected.getAttribute('data-email') || '';
+            var specialization = selected.getAttribute('data-specialization') || '-';
+            var qualification = selected.getAttribute('data-qualification') || '-';
+            var experience = selected.getAttribute('data-experience') || '0';
+            
+            // Fill hidden fields
+            $('#trainerName').val(name);
+            $('#trainerEmail').val(email);
+            
+            // Show info card
+            $('#infoName').text(name);
+            $('#infoEmail').text(email);
+            $('#infoSpecialization').text(specialization);
+            $('#infoQualification').text(qualification);
+            $('#infoExperience').text(experience + ' years');
+            $('#trainerInfoCard').addClass('show');
+        } else {
+            $('#trainerName').val('');
+            $('#trainerEmail').val('');
+            $('#trainerInfoCard').removeClass('show');
+        }
+    });
+    
+    // Trigger on page load if trainer is pre-selected
+    if ($('#trainerSelect').val()) {
+        $('#trainerSelect').trigger('change');
+    }
+    
+    // ===== COST PREVIEW =====
+    $('#cost').on('keyup change', function() {
+        var val = parseFloat($(this).val()) || 0;
+        $('#costDisplay').text('₦' + val.toLocaleString('en-NG', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }));
+    });
+    
+    // ===== AUTO-CALCULATE DURATION =====
+    $('#start_date, #end_date').on('change', function() {
+        var start = new Date($('#start_date').val());
+        var end = new Date($('#end_date').val());
+        
+        if (start && end && end >= start && !isNaN(start) && !isNaN(end)) {
+            var diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+            var hours = diffDays * 8; // 8 hours per day
+            
+            if (!$('#duration_hours').val()) {
+                $('#duration_hours').val(hours);
+            }
+        }
+    });
+    
+    // ===== DATE VALIDATION =====
+    $('#trainingForm').on('submit', function(e) {
+        var start = $('#start_date').val();
+        var end = $('#end_date').val();
+        
+        if (start && end && start > end) {
+            e.preventDefault();
+            Swal.fire({
+                icon: 'error',
+                title: 'Invalid Dates',
+                text: 'Start date cannot be after end date!'
+            });
+            return false;
+        }
+    });
+});
+
+// ===== MANUAL TRAINER TOGGLE =====
+function toggleManualTrainer() {
+    var checkbox = document.getElementById('manualTrainer');
+    var fields = document.getElementById('manualTrainerFields');
+    var select = document.getElementById('trainerSelect');
+    
+    if (checkbox.checked) {
+        fields.style.display = 'block';
+        if (select) select.disabled = true;
+    } else {
+        fields.style.display = 'none';
+        if (select) select.disabled = false;
+    }
+}
+</script>
 
 <?php require_once 'includes/footer.php'; ?>

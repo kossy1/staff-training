@@ -1,5 +1,5 @@
 <?php
-// employee/includes/header.php - Employee Panel Header
+// employee/includes/header.php - Employee Panel Header (InfinityFree Compatible)
 if (!isset($_SESSION)) {
     session_start();
 }
@@ -38,7 +38,7 @@ if (isset($conn)) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo $page_title . ' - ' . SITE_NAME; ?></title>
+    <title><?php echo $page_title . ' - ' . SITE_SHORT_NAME; ?></title>
     
     <!-- Favicon -->
     <link rel="icon" href="../assets/images/favicon.ico" type="image/x-icon">
@@ -72,16 +72,23 @@ if (isset($conn)) {
         :root {
             --header-height: 70px;
             --sidebar-width: 260px;
-            --primary-color: #667eea;
-            --secondary-color: #764ba2;
+            --primary: #667eea;
+            --secondary: #764ba2;
+        }
+        
+        * {
+            box-sizing: border-box;
         }
         
         body {
             padding-top: var(--header-height);
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             background: #f8f9fc;
+            margin: 0;
+            overflow-x: hidden;
         }
         
+        /* ===== SIDEBAR BACKDROP ===== */
         .sidebar-backdrop {
             display: none;
             position: fixed;
@@ -89,15 +96,15 @@ if (isset($conn)) {
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 998;
-            backdrop-filter: blur(4px);
+            background: rgba(0, 0, 0, 0.6);
+            z-index: 1040;
         }
         
         .sidebar-backdrop.show {
-            display: block;
+            display: block !important;
         }
         
+        /* ===== MAIN WRAPPER ===== */
         .wrapper {
             margin-left: var(--sidebar-width);
             min-height: 100vh;
@@ -109,24 +116,48 @@ if (isset($conn)) {
             min-height: calc(100vh - var(--header-height) - 60px);
         }
         
-        @media (max-width: 992px) {
+        /* ===== MOBILE RESPONSIVE ===== */
+        @media (max-width: 991.98px) {
             .wrapper {
                 margin-left: 0;
             }
+            
+            .main-content {
+                padding: 20px 15px;
+                padding-top: 80px;
+            }
         }
         
+        @media (max-width: 576px) {
+            .main-content {
+                padding: 15px 10px;
+                padding-top: 80px;
+            }
+        }
+        
+        /* ===== PRINT STYLES ===== */
         @media print {
-            .navbar, .sidebar, .sidebar-backdrop, .no-print {
+            .navbar, 
+            .sidebar, 
+            .sidebar-backdrop, 
+            .no-print,
+            .sidebar-toggle-btn {
                 display: none !important;
             }
-            body { padding-top: 0 !important; }
-            .wrapper { margin-left: 0 !important; }
-            .main-content { padding: 20px !important; }
+            body { 
+                padding-top: 0 !important; 
+            }
+            .wrapper { 
+                margin-left: 0 !important; 
+            }
+            .main-content { 
+                padding: 20px !important; 
+            }
         }
     </style>
 </head>
 <body>
-    <!-- Sidebar Backdrop -->
+    <!-- Sidebar Backdrop - MUST BE FIRST for z-index -->
     <div class="sidebar-backdrop" id="sidebarBackdrop"></div>
     
     <!-- Main Wrapper -->

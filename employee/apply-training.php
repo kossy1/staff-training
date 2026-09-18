@@ -1,5 +1,5 @@
 <?php
-// employee/apply-training.php - Apply for Training
+// employee/apply-training.php - Apply for Training with Payment Info
 require_once '../includes/config.php';
 require_once '../includes/session.php';
 
@@ -38,15 +38,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['training_id'])) {
         $message_type = 'warning';
     } else {
         // Check if training is full
-        $training = $conn->query("SELECT max_participants, current_participants FROM training_programs WHERE id = $training_id")->fetch_assoc();
+        $training = $conn->query("SELECT max_participants, current_participants, cost FROM training_programs WHERE id = $training_id")->fetch_assoc();
         if ($training && $training['current_participants'] >= $training['max_participants']) {
             $message = "This training is already full!";
             $message_type = 'danger';
         } else {
             // Enroll
             $stmt = $conn->prepare("
-                INSERT INTO employee_trainings (employee_id, training_id, enrollment_date, status) 
-                VALUES (?, ?, CURDATE(), 'enrolled')
+                INSERT INTO employee_trainings (employee_id, training_id, enrollment_date, status, payment_status) 
+                VALUES (?, ?, CURDATE(), 'enrolled', 'pending')
             ");
             $stmt->bind_param("ii", $employee_id, $training_id);
             
@@ -57,20 +57,37 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['training_id'])) {
                 // Log action
                 logAction($_SESSION['user_id'], 'training_applied', ['training_id' => $training_id]);
                 
-                $message = "Successfully applied for training!";
-                $message_type = 'success';
+                $enrollment_id = $conn->insert_id;
                 
-                // Refresh available trainings
-                $available = $conn->query("
-                    SELECT tp.*,
-                           (SELECT COUNT(*) FROM employee_trainings WHERE training_id = tp.id) as enrolled_count
-                    FROM training_programs tp
-                    WHERE tp.status IN ('upcoming', 'ongoing')
-                    AND tp.id NOT IN (
-                        SELECT training_id FROM employee_trainings WHERE employee_id = $employee_id
-                    )
-                    ORDER BY tp.start_date ASC
-                ");
+                // Check if training requires payment
+                if ($training['cost'] > 0) {
+                    $message = "Successfully applied! Please complete payment to confirm your enrollment.";
+                    $message_type = 'success';
+                    
+                    // Redirect to payment page
+                    echo "<script>
+                        setTimeout(function() {
+                            window.location.href = 'pay-training.php?training_id=$training_id&enrollment_id=$enrollment_id';
+                        }, 2000);
+                    </script>";
+                } else {
+                    // Free training - mark as paid
+                    $conn->query("UPDATE employee_trainings SET payment_status = 'paid' WHERE id = $enrollment_id");
+                    $message = "Successfully enrolled in free training!";
+                    $message_type = 'success';
+                    
+                    // Refresh available trainings
+                    $available = $conn->query("
+                        SELECT tp.*,
+                               (SELECT COUNT(*) FROM employee_trainings WHERE training_id = tp.id) as enrolled_count
+                        FROM training_programs tp
+                        WHERE tp.status IN ('upcoming', 'ongoing')
+                        AND tp.id NOT IN (
+                            SELECT training_id FROM employee_trainings WHERE employee_id = $employee_id
+                        )
+                        ORDER BY tp.start_date ASC
+                    ");
+                }
             } else {
                 $message = "Failed to apply. Please try again.";
                 $message_type = 'danger';
@@ -135,6 +152,7 @@ $(document).ready(function() {
                             <th>Start Date</th>
                             <th>Duration</th>
                             <th>Trainer</th>
+                            <th>Cost</th>
                             <th>Capacity</th>
                             <th>Action</th>
                         </tr>
@@ -167,6 +185,15 @@ $(document).ready(function() {
                                     <td><?php echo $training['duration_hours']; ?> hours</td>
                                     <td><?php echo htmlspecialchars($training['trainer_name'] ?? 'TBD'); ?></td>
                                     <td>
+                                        <?php if ($training['cost'] > 0): ?>
+                                            <span class="text-success font-weight-bold">
+                                                <?php echo formatNaira($training['cost']); ?>
+                                            </span>
+                                        <?php else: ?>
+                                            <span class="badge badge-success">Free</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
                                         <div class="d-flex align-items-center">
                                             <span><?php echo $training['current_participants']; ?>/<?php echo $training['max_participants']; ?></span>
                                             <div class="progress ml-2" style="height: 6px; width: 60px;">
@@ -182,6 +209,10 @@ $(document).ready(function() {
                                                     <i class="fas fa-check"></i> Apply
                                                 </button>
                                             </form>
+                                            <?php if ($training['cost'] > 0): ?>
+                                                <br>
+                                                <small class="text-muted">Payment required</small>
+                                            <?php endif; ?>
                                         <?php else: ?>
                                             <span class="badge badge-danger">Full</span>
                                         <?php endif; ?>
@@ -190,7 +221,7 @@ $(document).ready(function() {
                             <?php endwhile; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="7" class="text-center text-muted py-4">
+                                <td colspan="8" class="text-center text-muted py-4">
                                     <i class="fas fa-check-circle fa-3x text-success mb-3 d-block"></i>
                                     <h5>No Available Trainings</h5>
                                     <p>You are either enrolled in all trainings or no trainings are currently available.</p>

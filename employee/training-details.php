@@ -1,5 +1,5 @@
 <?php
-// employee/training-details.php - Show Naira
+// employee/training-details.php - Training Details with Payment Info
 require_once '../includes/config.php';
 require_once '../includes/session.php';
 
@@ -20,7 +20,8 @@ $employee_id = $_SESSION['employee_id'];
 $training = $conn->query("
     SELECT tp.*, 
            et.id as enrollment_id, et.status as enrollment_status, et.progress,
-           et.enrollment_date, et.completion_date, et.score
+           et.enrollment_date, et.completion_date, et.score,
+           et.payment_status, et.payment_reference, et.payment_amount, et.payment_date
     FROM training_programs tp
     LEFT JOIN employee_trainings et ON tp.id = et.training_id AND et.employee_id = $employee_id
     WHERE tp.id = $training_id
@@ -111,6 +112,11 @@ $page_title = 'Training Details';
                                 <p class="font-weight-bold">
                                     <?php if ($training['cost'] > 0): ?>
                                         <span class="text-success"><?php echo formatNaira($training['cost']); ?></span>
+                                        <?php if ($training['payment_status'] == 'paid'): ?>
+                                            <span class="badge badge-success ml-2">Paid</span>
+                                        <?php elseif ($training['payment_status'] == 'pending'): ?>
+                                            <span class="badge badge-warning ml-2">Pending</span>
+                                        <?php endif; ?>
                                     <?php else: ?>
                                         <span class="text-success">Free</span>
                                     <?php endif; ?>
@@ -138,6 +144,30 @@ $page_title = 'Training Details';
                             </div>
                         </div>
                     </div>
+                    
+                    <?php if ($training['payment_status'] == 'paid' && $training['payment_amount']): ?>
+                        <div class="row">
+                            <div class="col-md-12">
+                                <div class="payment-info">
+                                    <h6><i class="fas fa-receipt text-success"></i> Payment Details</h6>
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <small class="text-muted">Amount Paid</small>
+                                            <p class="font-weight-bold"><?php echo formatNaira($training['payment_amount']); ?></p>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <small class="text-muted">Reference</small>
+                                            <p class="font-weight-bold small"><?php echo htmlspecialchars($training['payment_reference']); ?></p>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <small class="text-muted">Payment Date</small>
+                                            <p class="font-weight-bold"><?php echo formatDateTime($training['payment_date']); ?></p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -175,6 +205,13 @@ $page_title = 'Training Details';
                                     <p><strong>Score:</strong> <?php echo $training['score']; ?>%</p>
                                 <?php endif; ?>
                             </div>
+                            
+                            <?php if ($training['cost'] > 0 && $training['payment_status'] != 'paid'): ?>
+                                <a href="pay-training.php?training_id=<?php echo $training['training_id']; ?>" 
+                                   class="btn btn-success btn-block mt-3">
+                                    <i class="fas fa-credit-card"></i> Pay Now
+                                </a>
+                            <?php endif; ?>
                         </div>
                     <?php else: ?>
                         <div class="text-center py-3">
@@ -234,6 +271,12 @@ $page_title = 'Training Details';
 .badge-lg {
     font-size: 1rem;
     padding: 8px 20px;
+}
+.payment-info {
+    background: #f8f9fc;
+    padding: 15px;
+    border-radius: 8px;
+    margin-top: 15px;
 }
 </style>
 

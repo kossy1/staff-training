@@ -75,4 +75,5 @@ function displayFlashMessage() {
         echo '</div>';
     }
 }
+
 ?>

@@ -1,5 +1,11 @@
 <?php
-// Application constants
+// includes/constants.php - Application Constants
+
+// Site Information
+define('SITE_NAME', 'THE POLYTECHNIC, IBADAN - SKILL DEVELOPMENT CENTRE');
+define('SITE_TAGLINE', 'Staff Training & Development Tracking System');
+define('SITE_FULL_NAME', 'THE POLYTECHNIC, IBADAN - SKILL DEVELOPMENT CENTRE Staff Training & Development Tracking System');
+define('SITE_SHORT_NAME', 'PolyIbadan SDC');
 
 // User Roles
 define('ROLE_ADMIN', 'admin');
@@ -53,4 +59,9 @@ define('DATE_FORMAT', 'Y-m-d');
 define('DATETIME_FORMAT', 'Y-m-d H:i:s');
 define('DISPLAY_DATE_FORMAT', 'M d, Y');
 define('DISPLAY_DATETIME_FORMAT', 'M d, Y H:i');
+
+// Currency Settings
+define('CURRENCY_SYMBOL', '₦');
+define('CURRENCY_CODE', 'NGN');
+define('CURRENCY_NAME', 'Naira');
 ?>

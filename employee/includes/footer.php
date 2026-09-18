@@ -1,20 +1,20 @@
 <?php
 // employee/includes/footer.php - Employee Footer
 ?>
-        </div>
-    </div>
+        </div><!-- end .main-content (if opened in page) -->
+    </div><!-- end .wrapper -->
     
     <footer class="footer-employee">
         <div class="container-fluid">
             <div class="row align-items-center">
                 <div class="col-md-6">
                     <p class="mb-0 text-muted small">
-                        &copy; <?php echo date('Y'); ?> <?php echo SITE_NAME; ?>. All rights reserved.
+                        &copy; <?php echo date('Y'); ?> THE POLYTECHNIC, IBADAN - SKILL DEVELOPMENT CENTRE. All rights reserved.
                     </p>
                 </div>
                 <div class="col-md-6 text-md-right">
                     <p class="mb-0 text-muted small">
-                        <i class="fas fa-user"></i> Logged in as <?php echo htmlspecialchars($full_name); ?>
+                        <i class="fas fa-user"></i> Logged in as <?php echo htmlspecialchars($full_name ?? 'Employee'); ?>
                     </p>
                 </div>
             </div>
